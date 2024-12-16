@@ -23,16 +23,11 @@ Implementation Notes
 * Adafruit's Bus Device library: https://github.com/adafruit/Adafruit_CircuitPython_BusDevice
 """
 
-import time
-
-from adafruit_bus_device.i2c_device import I2CDevice
-
 try:
     from typing import Any, List
-
-    from busio import I2C
 except ImportError:
     pass
+from adafruit_bus_device.i2c_device import I2CDevice
 
 __version__ = "0.0.0+auto.0"
 __repo__ = "https://github.com/adafruit/Adafruit_CircuitPython_INA3221.git"
@@ -152,32 +147,50 @@ class INA3221Channel:
     """Represents a single channel of the INA3221.
 
     Args:
-        parent (Any): The parent INA3221 instance managing the I2C communication.
+        device (Any): The device INA3221 instance managing the I2C communication.
         channel (int): The channel number (1, 2, or 3) for this instance.
     """
 
-    def __init__(self, parent: Any, channel: int) -> None:
-        self._parent = parent
+    def __init__(self, device: Any, channel: int) -> None:
+        self._device = device
         self._channel = channel
+        self._shunt_resistance = 0.5
+
+    def enable(self) -> None:
+        """Enable this channel"""
+        config = self._device._read_register(CONFIGURATION, 2)
+        config_value = (config[0] << 8) | config[1]
+        config_value |= 1 << (14 - self._channel)  # Set the bit for the specific channel
+        high_byte = (config_value >> 8) & 0xFF
+        low_byte = config_value & 0xFF
+        self._device._write_register(CONFIGURATION, bytes([high_byte, low_byte]))
 
     @property
     def bus_voltage(self) -> float:
         """Bus voltage in volts."""
-        return self._parent._bus_voltage(self._channel)
+        reg_address = [BUSVOLTAGE_CH1, BUSVOLTAGE_CH2, BUSVOLTAGE_CH3][self._channel]
+        result = self._device._read_register(reg_address, 2)
+        raw_value = int.from_bytes(result, "big")
+        voltage = (raw_value >> 3) * 8e-3
+        return voltage
 
     @property
     def shunt_voltage(self) -> float:
         """Shunt voltage in millivolts."""
-        return self._parent._shunt_voltage(self._channel)
+        reg_address = [SHUNTVOLTAGE_CH1, SHUNTVOLTAGE_CH2, SHUNTVOLTAGE_CH3][self._channel]
+        result = self._device._read_register(reg_address, 2)
+        raw_value = int.from_bytes(result, "big")
+        raw_value = raw_value - 0x10000 if raw_value & 0x8000 else raw_value # convert to signed int16
+        return (raw_value >> 3) * 40e-6
 
     @property
     def shunt_resistance(self) -> float:
         """Shunt resistance in ohms."""
-        return self._parent._shunt_resistance[self._channel]
+        return self._shunt_resistance
 
     @shunt_resistance.setter
     def shunt_resistance(self, value: float) -> None:
-        self._parent._shunt_resistance[self._channel] = value
+        self._shunt_resistance = value
 
     @property
     def current_amps(self) -> float:
@@ -189,25 +202,62 @@ class INA3221Channel:
         shunt_voltage = self.shunt_voltage
         if shunt_voltage != shunt_voltage:  # Check for NaN
             return float("nan")
-        return shunt_voltage / self.shunt_resistance
+        return shunt_voltage / self._shunt_resistance
+
+    @property
+    def critical_alert_threshold(self) -> float:
+        """Critical-Alert threshold in amperes
+
+        Returns:
+            float: The current critical alert threshold in amperes.
+        """
+        reg_addr = CRITICAL_ALERT_LIMIT_CH1 + 2 * self._channel
+        result = self._device._read_register(reg_addr, 2)
+        threshold = int.from_bytes(result, "big")
+        return (threshold >> 3) * 40e-6 / self._shunt_resistance
+
+    @critical_alert_threshold.setter
+    def critical_alert_threshold(self, current: float) -> None:
+        threshold = int(current * self._shunt_resistance / 40e-6 * 8)
+        reg_addr = CRITICAL_ALERT_LIMIT_CH1 + 2 * self._channel
+        threshold_bytes = threshold.to_bytes(2, "big")
+        self._device._write_register(reg_addr, threshold_bytes)
+
+    @property
+    def warning_alert_threshold(self) -> float:
+        """Warning-Alert threshold in amperes
+
+        Returns:
+            float: The current warning alert threshold in amperes.
+        """
+        reg_addr = WARNING_ALERT_LIMIT_CH1 + self._channel
+        result = self._device._read_register(reg_addr, 2)
+        threshold = int.from_bytes(result, "big")
+        return threshold / (self._shunt_resistance * 8)
+
+    @warning_alert_threshold.setter
+    def warning_alert_threshold(self, current: float) -> None:
+        threshold = int(current * self._shunt_resistance * 8)
+        reg_addr = WARNING_ALERT_LIMIT_CH1 + self._channel
+        threshold_bytes = threshold.to_bytes(2, "big")
+        self._device._write_register(reg_addr, threshold_bytes)
 
 
 class INA3221:
     """Driver for the INA3221 device with three channels."""
 
-    def __init__(self, i2c, address: int = DEFAULT_ADDRESS) -> None:
+    def __init__(self, i2c, address: int = DEFAULT_ADDRESS, enable: List = [0,1,2]) -> None:
         """Initializes the INA3221 class over I2C
         Args:
             i2c (I2C): The I2C bus to which the INA3221 is connected.
             address (int, optional): The I2C address of the INA3221. Defaults to DEFAULT_ADDRESS.
         """
         self.i2c_dev = I2CDevice(i2c, address)
-        self._shunt_resistance: List[float] = [0.05, 0.05, 0.05]  # Default shunt resistances
         self.reset()
 
         self.channels: List[INA3221Channel] = [INA3221Channel(self, i) for i in range(3)]
-        for i in range(3):
-            self.enable_channel(i)
+        for i in enable:
+            self.channels[i].enable()
         self.mode: int = MODE.SHUNT_BUS_CONT
         self.shunt_voltage_conv_time: int = CONV_TIME.CONV_TIME_8MS
         self.bus_voltage_conv_time: int = CONV_TIME.CONV_TIME_8MS
@@ -237,25 +287,6 @@ class INA3221:
         config = bytearray(config)
         config[0] |= 0x80  # Set the reset bit
         return self._write_register(CONFIGURATION, config)
-
-    def enable_channel(self, channel: int) -> None:
-        """Enable a specific channel of the INA3221.
-
-        Args:
-            channel (int): The channel number to enable (0, 1, or 2).
-
-        Raises:
-            ValueError: If the channel number is invalid (must be 0, 1, or 2).
-        """
-        if channel > 2:
-            raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
-
-        config = self._read_register(CONFIGURATION, 2)
-        config_value = (config[0] << 8) | config[1]
-        config_value |= 1 << (14 - channel)  # Set the bit for the specific channel
-        high_byte = (config_value >> 8) & 0xFF
-        low_byte = config_value & 0xFF
-        self._write_register(CONFIGURATION, bytes([high_byte, low_byte]))
 
     @property
     def die_id(self) -> int:
@@ -363,56 +394,6 @@ class INA3221:
         self._write_register(CONFIGURATION, config)
 
     @property
-    def critical_alert_threshold(self) -> float:
-        """Critical-Alert threshold in amperes
-
-        Returns:
-            float: The current critical alert threshold in amperes.
-        """
-        if self._channel > 2:
-            raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
-
-        reg_addr = CRITICAL_ALERT_LIMIT_CH1 + 2 * self._channel
-        result = self._parent._read_register(reg_addr, 2)
-        threshold = int.from_bytes(result, "big")
-        return (threshold >> 3) * 40e-6 / self.shunt_resistance
-
-    @critical_alert_threshold.setter
-    def critical_alert_threshold(self, current: float) -> None:
-        if self._channel > 2:
-            raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
-
-        threshold = int(current * self.shunt_resistance / 40e-6 * 8)
-        reg_addr = CRITICAL_ALERT_LIMIT_CH1 + 2 * self._channel
-        threshold_bytes = threshold.to_bytes(2, "big")
-        self._parent._write_register(reg_addr, threshold_bytes)
-
-    @property
-    def warning_alert_threshold(self) -> float:
-        """Warning-Alert threshold in amperes
-
-        Returns:
-            float: The current warning alert threshold in amperes.
-        """
-        if self._channel > 2:
-            raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
-
-        reg_addr = WARNING_ALERT_LIMIT_CH1 + self._channel
-        result = self._parent._read_register(reg_addr, 2)
-        threshold = int.from_bytes(result, "big")
-        return threshold / (self.shunt_resistance * 8)
-
-    @warning_alert_threshold.setter
-    def warning_alert_threshold(self, current: float) -> None:
-        if self._channel > 2:
-            raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
-
-        threshold = int(current * self.shunt_resistance * 8)
-        reg_addr = WARNING_ALERT_LIMIT_CH1 + self._channel
-        threshold_bytes = threshold.to_bytes(2, "big")
-        self._parent._write_register(reg_addr, threshold_bytes)
-
-    @property
     def flags(self) -> int:
         """Flag indicators from the Mask/Enable register.
 
@@ -497,37 +478,6 @@ class INA3221:
             val -= 1 << bits
         return val
 
-    def _shunt_voltage(self, channel):
-        if channel > 2:
-            raise ValueError("Must be channel 0, 1 or 2")
-        reg_address = [SHUNTVOLTAGE_CH1, SHUNTVOLTAGE_CH2, SHUNTVOLTAGE_CH3][channel]
-        result = self._read_register(reg_address, 2)
-        raw_value = int.from_bytes(result, "big")
-        raw_value = self._to_signed(raw_value, 16)
-
-        return (raw_value >> 3) * 40e-6
-
-    def _bus_voltage(self, channel):
-        if channel > 2:
-            raise ValueError("Must be channel 0, 1 or 2")
-
-        reg_address = [BUSVOLTAGE_CH1, BUSVOLTAGE_CH2, BUSVOLTAGE_CH3][channel]
-        result = self._read_register(reg_address, 2)
-        raw_value = int.from_bytes(result, "big")
-        voltage = (raw_value >> 3) * 8e-3
-
-        return voltage
-
-    def _current_amps(self, channel):
-        if channel >= 3:
-            raise ValueError("Must be channel 0, 1 or 2")
-
-        shunt_voltage = self._shunt_voltage(channel)
-        if shunt_voltage != shunt_voltage:
-            raise ValueError("Must be channel 0, 1 or 2")
-
-        return shunt_voltage / self._shunt_resistance[channel]
-
     def _write_register(self, reg, data):
         with self.i2c_dev:
             self.i2c_dev.write(bytes([reg]) + data)
@@ -538,7 +488,7 @@ class INA3221:
             with self.i2c_dev:
                 self.i2c_dev.write(bytes([reg]))
                 self.i2c_dev.readinto(result)
-        except OSError as e:
-            print(f"I2C error: {e}")
+        except OSError as ex:
+            print(f"I2C error: {ex}")
             return None
         return result
