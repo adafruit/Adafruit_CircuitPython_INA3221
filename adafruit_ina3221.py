@@ -160,7 +160,9 @@ class INA3221Channel:
         """Enable this channel"""
         config = self._device._read_register(CONFIGURATION, 2)
         config_value = (config[0] << 8) | config[1]
-        config_value |= 1 << (14 - self._channel)  # Set the bit for the specific channel
+        config_value |= 1 << (
+            14 - self._channel
+        )  # Set the bit for the specific channel
         high_byte = (config_value >> 8) & 0xFF
         low_byte = config_value & 0xFF
         self._device._write_register(CONFIGURATION, bytes([high_byte, low_byte]))
@@ -177,10 +179,14 @@ class INA3221Channel:
     @property
     def shunt_voltage(self) -> float:
         """Shunt voltage in millivolts."""
-        reg_address = [SHUNTVOLTAGE_CH1, SHUNTVOLTAGE_CH2, SHUNTVOLTAGE_CH3][self._channel]
+        reg_address = [SHUNTVOLTAGE_CH1, SHUNTVOLTAGE_CH2, SHUNTVOLTAGE_CH3][
+            self._channel
+        ]
         result = self._device._read_register(reg_address, 2)
         raw_value = int.from_bytes(result, "big")
-        raw_value = raw_value - 0x10000 if raw_value & 0x8000 else raw_value # convert to signed int16
+        raw_value = (
+            raw_value - 0x10000 if raw_value & 0x8000 else raw_value
+        )  # convert to signed int16
         return (raw_value >> 3) * 40e-6
 
     @property
@@ -246,7 +252,9 @@ class INA3221Channel:
 class INA3221:
     """Driver for the INA3221 device with three channels."""
 
-    def __init__(self, i2c, address: int = DEFAULT_ADDRESS, enable: List = [0,1,2]) -> None:
+    def __init__(
+        self, i2c, address: int = DEFAULT_ADDRESS, enable: List = [0, 1, 2]
+    ) -> None:
         """Initializes the INA3221 class over I2C
         Args:
             i2c (I2C): The I2C bus to which the INA3221 is connected.
@@ -255,7 +263,9 @@ class INA3221:
         self.i2c_dev = I2CDevice(i2c, address)
         self.reset()
 
-        self.channels: List[INA3221Channel] = [INA3221Channel(self, i) for i in range(3)]
+        self.channels: List[INA3221Channel] = [
+            INA3221Channel(self, i) for i in range(3)
+        ]
         for i in enable:
             self.channels[i].enable()
         self.mode: int = MODE.SHUNT_BUS_CONT
@@ -439,7 +449,9 @@ class INA3221:
     @summation_channels.setter
     def summation_channels(self, channels: tuple) -> None:
         if len(channels) != 3:
-            raise ValueError("Must pass a tuple of three boolean values (ch1, ch2, ch3)")
+            raise ValueError(
+                "Must pass a tuple of three boolean values (ch1, ch2, ch3)"
+            )
         ch1, ch2, ch3 = channels
         scc_value = (ch1 << 2) | (ch2 << 1) | (ch3 << 0)
         result = self._read_register(MASK_ENABLE, 2)
