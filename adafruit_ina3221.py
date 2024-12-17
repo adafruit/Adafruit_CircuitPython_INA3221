@@ -38,18 +38,10 @@ DIE_ID = 0x3220
 
 # Register Definitions
 CONFIGURATION = 0x00
-SHUNTVOLTAGE_CH1 = 0x01
-BUSVOLTAGE_CH1 = 0x02
-SHUNTVOLTAGE_CH2 = 0x03
-BUSVOLTAGE_CH2 = 0x04
-SHUNTVOLTAGE_CH3 = 0x05
-BUSVOLTAGE_CH3 = 0x06
-CRITICAL_ALERT_LIMIT_CH1 = 0x07
-WARNING_ALERT_LIMIT_CH1 = 0x08
-CRITICAL_ALERT_LIMIT_CH2 = 0x09
-WARNING_ALERT_LIMIT_CH2 = 0x0A
-CRITICAL_ALERT_LIMIT_CH3 = 0x0B
-WARNING_ALERT_LIMIT_CH3 = 0x0C
+SHUNTVOLTAGE_REGS = [0x01, 0x03, 0x05]
+BUSTVOLTAGE_REGS = [0x02, 0x04, 0x06]
+CRITICAL_ALERT_LIMIT_REGS = [0x07, 0x09, 0x0B]
+WARNING_ALERT_LIMIT_REGS = [0x08, 0x0A, 0x0C]
 SHUNTVOLTAGE_SUM = 0x0D
 SHUNTVOLTAGE_SUM_LIMIT = 0x0E
 MASK_ENABLE = 0x0F
@@ -170,7 +162,7 @@ class INA3221Channel:
     @property
     def bus_voltage(self) -> float:
         """Bus voltage in volts."""
-        reg_address = [BUSVOLTAGE_CH1, BUSVOLTAGE_CH2, BUSVOLTAGE_CH3][self._channel]
+        reg_address = BUSVOLTAGE_REGS[self._channel]
         result = self._device._read_register(reg_address, 2)
         raw_value = int.from_bytes(result, "big")
         voltage = (raw_value >> 3) * 8e-3
@@ -179,9 +171,7 @@ class INA3221Channel:
     @property
     def shunt_voltage(self) -> float:
         """Shunt voltage in millivolts."""
-        reg_address = [SHUNTVOLTAGE_CH1, SHUNTVOLTAGE_CH2, SHUNTVOLTAGE_CH3][
-            self._channel
-        ]
+        reg_address = SHUNTVOLTAGE_REGS[self._channel]
         result = self._device._read_register(reg_address, 2)
         raw_value = int.from_bytes(result, "big")
         raw_value = (
@@ -217,7 +207,7 @@ class INA3221Channel:
         Returns:
             float: The current critical alert threshold in amperes.
         """
-        reg_addr = CRITICAL_ALERT_LIMIT_CH1 + 2 * self._channel
+        reg_addr = CRITICAL_ALERT_LIMIT_REGS[self._channel]
         result = self._device._read_register(reg_addr, 2)
         threshold = int.from_bytes(result, "big")
         return (threshold >> 3) * 40e-6 / self._shunt_resistance
@@ -225,7 +215,7 @@ class INA3221Channel:
     @critical_alert_threshold.setter
     def critical_alert_threshold(self, current: float) -> None:
         threshold = int(current * self._shunt_resistance / 40e-6 * 8)
-        reg_addr = CRITICAL_ALERT_LIMIT_CH1 + 2 * self._channel
+        reg_addr = CRITICAL_ALERT_LIMIT_REGS[self._channel]
         threshold_bytes = threshold.to_bytes(2, "big")
         self._device._write_register(reg_addr, threshold_bytes)
 
@@ -236,7 +226,7 @@ class INA3221Channel:
         Returns:
             float: The current warning alert threshold in amperes.
         """
-        reg_addr = WARNING_ALERT_LIMIT_CH1 + self._channel
+        reg_addr = WARNING_ALERT_LIMIT_REGS[self._channel]
         result = self._device._read_register(reg_addr, 2)
         threshold = int.from_bytes(result, "big")
         return threshold / (self._shunt_resistance * 8)
@@ -244,7 +234,7 @@ class INA3221Channel:
     @warning_alert_threshold.setter
     def warning_alert_threshold(self, current: float) -> None:
         threshold = int(current * self._shunt_resistance * 8)
-        reg_addr = WARNING_ALERT_LIMIT_CH1 + self._channel
+        reg_addr = WARNING_ALERT_LIMIT_REGS[self._channel]
         threshold_bytes = threshold.to_bytes(2, "big")
         self._device._write_register(reg_addr, threshold_bytes)
 
