@@ -147,6 +147,7 @@ class INA3221Channel:
         self._device = device
         self._channel = channel
         self._shunt_resistance = 0.5
+        self._enabled = False
 
     def enable(self) -> None:
         """Enable this channel"""
@@ -156,6 +157,12 @@ class INA3221Channel:
         high_byte = (config_value >> 8) & 0xFF
         low_byte = config_value & 0xFF
         self._device._write_register(CONFIGURATION, bytes([high_byte, low_byte]))
+        self._enabled = True
+
+    @property
+    def enabled(self) -> bool:
+        """return buffered enable-state """
+        return self._enabled
 
     @property
     def bus_voltage(self) -> float:
