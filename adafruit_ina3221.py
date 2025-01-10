@@ -542,4 +542,3 @@ class INA3221:
             print(f"I2C error: {e}")
             return None
         return result
-
