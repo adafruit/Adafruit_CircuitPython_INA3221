@@ -214,7 +214,7 @@ class INA3221Channel:
         if self._channel > 2:
             raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
 
-        reg_addr = WARNING_ALERT_LIMIT_CH1 + self._channel
+        reg_addr = WARNING_ALERT_LIMIT_CH1 + 2 * self._channel
         result = self._parent._read_register(reg_addr, 2)
         threshold = int.from_bytes(result, "big")
         return threshold / (self.shunt_resistance * 8)
@@ -225,7 +225,7 @@ class INA3221Channel:
             raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
 
         threshold = int(current * self.shunt_resistance * 8)
-        reg_addr = WARNING_ALERT_LIMIT_CH1 + self._channel
+        reg_addr = WARNING_ALERT_LIMIT_CH1 + 2 * self._channel
         threshold_bytes = threshold.to_bytes(2, "big")
         self._parent._write_register(reg_addr, threshold_bytes)
 
