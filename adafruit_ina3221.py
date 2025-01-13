@@ -475,9 +475,9 @@ class INA3221:
             in volts as (vlimitlow, vlimithigh).
         """
         low_limit_result = self._read_register(POWERVALID_LOWERLIMIT, 2)
-        vlimitlow = int.from_bytes(low_limit_result, "big") * 1e-3
+        vlimitlow = int.from_bytes(low_limit_result, "big") * 8e-3
         high_limit_result = self._read_register(POWERVALID_UPPERLIMIT, 2)
-        vlimithigh = int.from_bytes(high_limit_result, "big") * 1e-3
+        vlimithigh = int.from_bytes(high_limit_result, "big") * 8e-3
         return vlimitlow, vlimithigh
 
     @power_valid_limits.setter
