@@ -474,19 +474,22 @@ class INA3221:
             tuple: A tuple containing the lower and upper voltage limits
             in volts as (vlimitlow, vlimithigh).
         """
+        pv_V_to_mV = 1e-3
         low_limit_result = self._read_register(POWERVALID_LOWERLIMIT, 2)
-        vlimitlow = int.from_bytes(low_limit_result, "big") * 8e-3
+        vlimitlow = int.from_bytes(low_limit_result, "big") * pv_V_to_mV
         high_limit_result = self._read_register(POWERVALID_UPPERLIMIT, 2)
-        vlimithigh = int.from_bytes(high_limit_result, "big") * 8e-3
+        vlimithigh = int.from_bytes(high_limit_result, "big") * pv_V_to_mV
         return vlimitlow, vlimithigh
 
     @power_valid_limits.setter
     def power_valid_limits(self, limits: tuple) -> None:
         if len(limits) != 2:
             raise ValueError("Must provide both lower and upper voltage limits.")
+        pv_V_to_mV = 1e-3
+        tailmask = 0xFFF8
         vlimitlow, vlimithigh = limits
-        low_limit_value = int(vlimitlow * 1000)
-        high_limit_value = int(vlimithigh * 1000)
+        low_limit_value = int(vlimitlow / pv_V_to_mV) & tailmask
+        high_limit_value = int(vlimithigh / pv_V_to_mV) & tailmask
         low_limit_bytes = low_limit_value.to_bytes(2, "big")
         self._write_register(POWERVALID_LOWERLIMIT, low_limit_bytes)
         high_limit_bytes = high_limit_value.to_bytes(2, "big")
