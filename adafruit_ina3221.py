@@ -180,6 +180,56 @@ class INA3221Channel:
         self._parent._shunt_resistance[self._channel] = value
 
     @property
+    def critical_alert_threshold(self) -> float:
+        """Critical-Alert threshold in amperes
+
+        Returns:
+            float: The current critical alert threshold in amperes.
+        """
+        if self._channel > 2:
+            raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
+
+        reg_addr = CRITICAL_ALERT_LIMIT_CH1 + 2 * self._channel
+        result = self._parent._read_register(reg_addr, 2)
+        threshold = int.from_bytes(result, "big")
+        return (threshold >> 3) * 40e-6 / self.shunt_resistance
+
+    @critical_alert_threshold.setter
+    def critical_alert_threshold(self, current: float) -> None:
+        if self._channel > 2:
+            raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
+
+        threshold = int(current * self.shunt_resistance / 40e-6 * 8)
+        reg_addr = CRITICAL_ALERT_LIMIT_CH1 + 2 * self._channel
+        threshold_bytes = threshold.to_bytes(2, "big")
+        self._parent._write_register(reg_addr, threshold_bytes)
+
+    @property
+    def warning_alert_threshold(self) -> float:
+        """Warning-Alert threshold in amperes
+
+        Returns:
+            float: The current warning alert threshold in amperes.
+        """
+        if self._channel > 2:
+            raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
+
+        reg_addr = WARNING_ALERT_LIMIT_CH1 + 2 * self._channel
+        result = self._parent._read_register(reg_addr, 2)
+        threshold = int.from_bytes(result, "big")
+        return threshold / (self.shunt_resistance * 8)
+
+    @warning_alert_threshold.setter
+    def warning_alert_threshold(self, current: float) -> None:
+        if self._channel > 2:
+            raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
+
+        threshold = int(current * self.shunt_resistance * 8)
+        reg_addr = WARNING_ALERT_LIMIT_CH1 + 2 * self._channel
+        threshold_bytes = threshold.to_bytes(2, "big")
+        self._parent._write_register(reg_addr, threshold_bytes)
+
+    @property
     def current_amps(self) -> float:
         """Returns the current in amperes.
 
@@ -363,56 +413,6 @@ class INA3221:
         self._write_register(CONFIGURATION, config)
 
     @property
-    def critical_alert_threshold(self) -> float:
-        """Critical-Alert threshold in amperes
-
-        Returns:
-            float: The current critical alert threshold in amperes.
-        """
-        if self._channel > 2:
-            raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
-
-        reg_addr = CRITICAL_ALERT_LIMIT_CH1 + 2 * self._channel
-        result = self._parent._read_register(reg_addr, 2)
-        threshold = int.from_bytes(result, "big")
-        return (threshold >> 3) * 40e-6 / self.shunt_resistance
-
-    @critical_alert_threshold.setter
-    def critical_alert_threshold(self, current: float) -> None:
-        if self._channel > 2:
-            raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
-
-        threshold = int(current * self.shunt_resistance / 40e-6 * 8)
-        reg_addr = CRITICAL_ALERT_LIMIT_CH1 + 2 * self._channel
-        threshold_bytes = threshold.to_bytes(2, "big")
-        self._parent._write_register(reg_addr, threshold_bytes)
-
-    @property
-    def warning_alert_threshold(self) -> float:
-        """Warning-Alert threshold in amperes
-
-        Returns:
-            float: The current warning alert threshold in amperes.
-        """
-        if self._channel > 2:
-            raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
-
-        reg_addr = WARNING_ALERT_LIMIT_CH1 + self._channel
-        result = self._parent._read_register(reg_addr, 2)
-        threshold = int.from_bytes(result, "big")
-        return threshold / (self.shunt_resistance * 8)
-
-    @warning_alert_threshold.setter
-    def warning_alert_threshold(self, current: float) -> None:
-        if self._channel > 2:
-            raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
-
-        threshold = int(current * self.shunt_resistance * 8)
-        reg_addr = WARNING_ALERT_LIMIT_CH1 + self._channel
-        threshold_bytes = threshold.to_bytes(2, "big")
-        self._parent._write_register(reg_addr, threshold_bytes)
-
-    @property
     def flags(self) -> int:
         """Flag indicators from the Mask/Enable register.
 
@@ -474,19 +474,22 @@ class INA3221:
             tuple: A tuple containing the lower and upper voltage limits
             in volts as (vlimitlow, vlimithigh).
         """
+        pv_V_to_mV = 1e-3
         low_limit_result = self._read_register(POWERVALID_LOWERLIMIT, 2)
-        vlimitlow = int.from_bytes(low_limit_result, "big") * 8e-3
+        vlimitlow = int.from_bytes(low_limit_result, "big") * pv_V_to_mV
         high_limit_result = self._read_register(POWERVALID_UPPERLIMIT, 2)
-        vlimithigh = int.from_bytes(high_limit_result, "big") * 8e-3
+        vlimithigh = int.from_bytes(high_limit_result, "big") * pv_V_to_mV
         return vlimitlow, vlimithigh
 
     @power_valid_limits.setter
     def power_valid_limits(self, limits: tuple) -> None:
         if len(limits) != 2:
             raise ValueError("Must provide both lower and upper voltage limits.")
+        pv_V_to_mV = 1e-3
+        tailmask = 0xFFF8
         vlimitlow, vlimithigh = limits
-        low_limit_value = int(vlimitlow * 1000)
-        high_limit_value = int(vlimithigh * 1000)
+        low_limit_value = int(vlimitlow / pv_V_to_mV) & tailmask
+        high_limit_value = int(vlimithigh / pv_V_to_mV) & tailmask
         low_limit_bytes = low_limit_value.to_bytes(2, "big")
         self._write_register(POWERVALID_LOWERLIMIT, low_limit_bytes)
         high_limit_bytes = high_limit_value.to_bytes(2, "big")
