@@ -245,13 +245,14 @@ class INA3221Channel:
 class INA3221:
     """Driver for the INA3221 device with three channels."""
 
-    def __init__(self, i2c, address: int = DEFAULT_ADDRESS) -> None:
+    def __init__(self, i2c, address: int = DEFAULT_ADDRESS, probe: bool = True) -> None:
         """Initializes the INA3221 class over I2C
         Args:
             i2c (I2C): The I2C bus to which the INA3221 is connected.
             address (int, optional): The I2C address of the INA3221. Defaults to DEFAULT_ADDRESS.
+            probe (bool, optiona): Probe for the device upon object creation, default is true
         """
-        self.i2c_dev = I2CDevice(i2c, address)
+        self.i2c_dev = I2CDevice(i2c, address, probe=probe)
         self._shunt_resistance: List[float] = [0.05, 0.05, 0.05]  # Default shunt resistances
         self.reset()
 
