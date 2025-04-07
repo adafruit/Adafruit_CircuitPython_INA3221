@@ -66,31 +66,35 @@ CRITICAL_CH1 = 1 << 9
 DEFAULT_SHUNT_RESISTANCE = 0.05
 
 # Precision (LSB) of bus-voltage and shunt-voltage
-BUS_V_LSB = 0.008   # 8mV
-SHUNT_V_LSB = 0.000040 # 40µV
+BUS_V_LSB = 0.008  # 8mV
+SHUNT_V_LSB = 0.000040  # 40µV
 
-def _mask(offset,len,read=True):
-  """ return mask for reading or writing """
-  if read:
-    return ((1<<len)-1)<<offset
-  else:
-    return ~(((1<<len)-1)<<offset) & 0xFFFF
+
+def _mask(offset, len, read=True):
+    """return mask for reading or writing"""
+    if read:
+        return ((1 << len) - 1) << offset
+    else:
+        return ~(((1 << len) - 1) << offset) & 0xFFFF
+
 
 def _to_signed(val: int, shift: int, bits: int):
-    """ convert value to signed int and shift result """
+    """convert value to signed int and shift result"""
     if val & (1 << (bits - 1)):
-        val -= 1 << (bits-1)             # remove sign
-        val = (1 << bits-1) - 1 - val    # bitwise not
-        return - (val >> shift)
+        val -= 1 << (bits - 1)  # remove sign
+        val = (1 << bits - 1) - 1 - val  # bitwise not
+        return -(val >> shift)
     return val >> shift
 
+
 def _to_2comp(val: int, shift: int, bits: int):
-  """ convert value to twos complement, shifting as necessary """
-  if val > 0:
-      return val << shift
-  val = (-val) << shift
-  val = (1 << bits-1) - val    # bitwise not plus 1
-  return val + (1 << (bits-1))
+    """convert value to twos complement, shifting as necessary"""
+    if val > 0:
+        return val << shift
+    val = (-val) << shift
+    val = (1 << bits - 1) - val  # bitwise not plus 1
+    return val + (1 << (bits - 1))
+
 
 class AVG_MODE:
     """Enumeration for the averaging mode options in INA3221.
@@ -181,29 +185,28 @@ class INA3221Channel:
     def enable(self, flag: bool = True) -> None:
         """Enable/disable this channel"""
         # enable bits in the configuration-register: 14-12
-        self._device._set_register_bits(CONFIGURATION,
-                                        14-self._channel,1,int(flag))
+        self._device._set_register_bits(CONFIGURATION, 14 - self._channel, 1, int(flag))
         self._enabled = flag
 
     @property
     def enabled(self) -> bool:
-        """return buffered enable-state """
+        """return buffered enable-state"""
         return self._enabled
 
     @property
     def bus_voltage(self) -> float:
         """Bus voltage in volts."""
         reg_addr = BUSVOLTAGE_REGS[self._channel]
-        raw_value = self._device._get_register_bits(reg_addr,0,16)
-        raw_value = _to_signed(raw_value,3,16)
+        raw_value = self._device._get_register_bits(reg_addr, 0, 16)
+        raw_value = _to_signed(raw_value, 3, 16)
         return raw_value * BUS_V_LSB
 
     @property
     def shunt_voltage(self) -> float:
         """Shunt voltage in millivolts."""
         reg_addr = SHUNTVOLTAGE_REGS[self._channel]
-        raw_value = self._device._get_register_bits(reg_addr,0,16)
-        raw_value = _to_signed(raw_value,3,16)
+        raw_value = self._device._get_register_bits(reg_addr, 0, 16)
+        raw_value = _to_signed(raw_value, 3, 16)
         return raw_value * SHUNT_V_LSB * 1000
 
     @property
@@ -235,14 +238,14 @@ class INA3221Channel:
             float: The current critical alert threshold in amperes.
         """
         reg_addr = CRITICAL_ALERT_LIMIT_REGS[self._channel]
-        threshold = self._device._get_register_bits(reg_addr,3,13)
+        threshold = self._device._get_register_bits(reg_addr, 3, 13)
         return threshold * SHUNT_V_LSB / self._shunt_resistance
 
     @critical_alert_threshold.setter
     def critical_alert_threshold(self, current: float) -> None:
         threshold = int(current * self._shunt_resistance / SHUNT_V_LSB)
         reg_addr = CRITICAL_ALERT_LIMIT_REGS[self._channel]
-        self._device._set_register_bits(reg_addr,3,13,threshold)
+        self._device._set_register_bits(reg_addr, 3, 13, threshold)
 
     @property
     def warning_alert_threshold(self) -> float:
@@ -252,24 +255,25 @@ class INA3221Channel:
             float: The current warning alert threshold in amperes.
         """
         reg_addr = WARNING_ALERT_LIMIT_REGS[self._channel]
-        threshold = self._device._get_register_bits(reg_addr,3,13)
+        threshold = self._device._get_register_bits(reg_addr, 3, 13)
         return threshold / self._shunt_resistance
 
     @warning_alert_threshold.setter
     def warning_alert_threshold(self, current: float) -> None:
         threshold = int(current * self._shunt_resistance)
         reg_addr = WARNING_ALERT_LIMIT_REGS[self._channel]
-        self._device._set_register_bits(reg_addr,3,13,threshold)
+        self._device._set_register_bits(reg_addr, 3, 13, threshold)
 
     @property
     def summation_channel(self) -> bool:
-        """Status of summation channel """
-        return self._device._get_register_bits(MASK_ENABLE,14-self._channel,1)
+        """Status of summation channel"""
+        return self._device._get_register_bits(MASK_ENABLE, 14 - self._channel, 1)
 
     @summation_channel.setter
     def summation_channel(self, value: bool) -> None:
-      """ set value of summation control """
-      self._device._set_register_bits(MASK_ENABLE,14-self._channel,1,int(value))
+        """set value of summation control"""
+        self._device._set_register_bits(MASK_ENABLE, 14 - self._channel, 1, int(value))
+
 
 class INA3221:
     """Driver for the INA3221 device with three channels."""
@@ -311,7 +315,7 @@ class INA3221:
         Returns:
             None
         """
-        self._set_register_bits(CONFIGURATION,15,1,1)
+        self._set_register_bits(CONFIGURATION, 15, 1, 1)
 
     @property
     def die_id(self) -> int:
@@ -342,13 +346,13 @@ class INA3221:
             4: Alternate power down mode, 5: Continuous shunt voltage measurement,
             6: Continuous bus voltage measurement, 7: Continuous shunt and bus voltage measurements
         """
-        return self._get_register_bits(CONFIGURATION,0,3)
+        return self._get_register_bits(CONFIGURATION, 0, 3)
 
     @mode.setter
     def mode(self, value: int) -> None:
         if not 0 <= value <= 7:
             raise ValueError("Mode must be a 3-bit value (0-7).")
-        self._set_register_bits(CONFIGURATION,0,3,value)
+        self._set_register_bits(CONFIGURATION, 0, 3, value)
 
     @property
     def shunt_voltage_conv_time(self) -> int:
@@ -359,13 +363,13 @@ class INA3221:
             0: 140µs, 1: 204µs, 2: 332µs, 3: 588µs,
             4: 1ms, 5: 2ms, 6: 4ms, 7: 8ms
         """
-        return self._get_register_bits(CONFIGURATION,3,3)
+        return self._get_register_bits(CONFIGURATION, 3, 3)
 
     @shunt_voltage_conv_time.setter
     def shunt_voltage_conv_time(self, conv_time: int) -> None:
         if conv_time < 0 or conv_time > 7:
             raise ValueError("Conversion time must be between 0 and 7")
-        self._set_register_bits(CONFIGURATION,3,3,int(conv_time))
+        self._set_register_bits(CONFIGURATION, 3, 3, int(conv_time))
 
     @property
     def bus_voltage_conv_time(self) -> int:
@@ -376,13 +380,13 @@ class INA3221:
             0: 140µs, 1: 204µs, 2: 332µs, 3: 588µs,
             4: 1ms, 5: 2ms, 6: 4ms, 7: 8ms
         """
-        return self._get_register_bits(CONFIGURATION,6,3)
+        return self._get_register_bits(CONFIGURATION, 6, 3)
 
     @bus_voltage_conv_time.setter
     def bus_voltage_conv_time(self, conv_time: int) -> None:
         if conv_time < 0 or conv_time > 7:
             raise ValueError("Conversion time must be between 0 and 7")
-        self._set_register_bits(CONFIGURATION,6,3,int(conv_time))
+        self._set_register_bits(CONFIGURATION, 6, 3, int(conv_time))
 
     @property
     def averaging_mode(self) -> int:
@@ -394,13 +398,13 @@ class INA3221:
             3: 64_SAMPLES, 4: 128_SAMPLES, 5: 256_SAMPLES,
             6: 512_SAMPLES, 7: 1024_SAMPLES
         """
-        return self._get_register_bits(CONFIGURATION,9,3)
+        return self._get_register_bits(CONFIGURATION, 9, 3)
 
     @averaging_mode.setter
     def averaging_mode(self, mode: int) -> None:
         if mode < 0 or mode > 7:
             raise ValueError("Averaging mode must be between 0 and 7")
-        self._set_register_bits(CONFIGURATION,9,3,int(mode))
+        self._set_register_bits(CONFIGURATION, 9, 3, int(mode))
 
     @property
     def flags(self) -> int:
@@ -410,7 +414,7 @@ class INA3221:
             int: The current flag indicators from the Mask/Enable register,
             masked for relevant flag bits.
         """
-        return self._read_register_bits(MASK_ENABLE,0,10)
+        return self._read_register_bits(MASK_ENABLE, 0, 10)
 
     @property
     def power_valid_limits(self) -> tuple:
@@ -420,10 +424,10 @@ class INA3221:
             tuple: A tuple containing the lower and upper voltage limits
             in volts as (lower_limit, upper_limit).
         """
-        raw_value = self._device._get_register_bits(POWERVALID_LOWERLIMIT,0,16)
-        lower_limit = _to_signed(raw_value,3,16) * 8e-3
-        raw_value = self._device._get_register_bits(POWERVALID_UPPERLIMIT,0,16)
-        upper_limit = _to_signed(raw_value,3,16) * 8e-3
+        raw_value = self._device._get_register_bits(POWERVALID_LOWERLIMIT, 0, 16)
+        lower_limit = _to_signed(raw_value, 3, 16) * 8e-3
+        raw_value = self._device._get_register_bits(POWERVALID_UPPERLIMIT, 0, 16)
+        upper_limit = _to_signed(raw_value, 3, 16) * 8e-3
         return lower_limit, upper_limit
 
     @power_valid_limits.setter
@@ -431,26 +435,26 @@ class INA3221:
         if len(limits) != 2:
             raise ValueError("Must provide both lower and upper voltage limits.")
         # convert to mV and twos-complement
-        lower_limit = _to_2comp(int(limits[0] * 1000),3,16)
-        upper_limit = _to_2comp(int(limits[1] * 1000),3,16)
-        self._device._set_register_bits(POWERVALID_LOWERLIMIT,0,16,lower_limit)
-        self._device._set_register_bits(POWERVALID_UPPERLIMIT,0,16,upper_limit)
+        lower_limit = _to_2comp(int(limits[0] * 1000), 3, 16)
+        upper_limit = _to_2comp(int(limits[1] * 1000), 3, 16)
+        self._device._set_register_bits(POWERVALID_LOWERLIMIT, 0, 16, lower_limit)
+        self._device._set_register_bits(POWERVALID_UPPERLIMIT, 0, 16, upper_limit)
 
-    def _get_register_bits(self,reg,offset,len):
-        """ return given bits from register """
+    def _get_register_bits(self, reg, offset, len):
+        """return given bits from register"""
         value = self._read_register(reg, 2)
         value = (value[0] << 8) | value[1]  # swap bytes
-        mask = _mask(offset,len,read=True)
+        mask = _mask(offset, len, read=True)
         return (value & mask) >> offset
 
-    def _set_register_bits(self,reg,offset,len,value):
-        """ set given bits of register """
+    def _set_register_bits(self, reg, offset, len, value):
+        """set given bits of register"""
         old = self._read_register(reg, 2)
         old = (old[0] << 8) | old[1]  # swap bytes
-        mask = _mask(offset,len,read=False)
+        mask = _mask(offset, len, read=False)
         new = (old & mask) | value << offset
         high_byte = (new >> 8) & 0xFF
-        low_byte  = new & 0xFF
+        low_byte = new & 0xFF
         self._write_register(reg, bytes([high_byte, low_byte]))
 
     def _write_register(self, reg, data):

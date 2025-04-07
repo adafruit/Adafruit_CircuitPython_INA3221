@@ -8,17 +8,17 @@ import board
 from adafruit_ina3221 import INA3221
 
 i2c = board.I2C()
-ina = INA3221(i2c)
+ina = INA3221(i2c, enable=[0, 1, 2])
 
 while True:
     for i in range(3):
         bus_voltage = ina[i].bus_voltage
         shunt_voltage = ina[i].shunt_voltage
-        current = ina[i].current_amps * 1000
+        current = ina[i].current
 
         print(f"Channel {i + 1}:")
         print(f"  Bus Voltage: {bus_voltage:.6f} V")
-        print(f"  Shunt Voltage: {shunt_voltage:.6f} V")
+        print(f"  Shunt Voltage: {shunt_voltage:.6f} mV")
         print(f"  Current: {current:.6f} mA")
         print("-" * 30)
 
