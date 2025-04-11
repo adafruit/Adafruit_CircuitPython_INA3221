@@ -23,14 +23,10 @@ Implementation Notes
 * Adafruit's Bus Device library: https://github.com/adafruit/Adafruit_CircuitPython_BusDevice
 """
 
-import time
-
 from adafruit_bus_device.i2c_device import I2CDevice
 
 try:
     from typing import Any, List
-
-    from busio import I2C
 except ImportError:
     pass
 
@@ -178,10 +174,9 @@ class INA3221Channel:
     @shunt_resistance.setter
     def shunt_resistance(self, value: float) -> None:
         self._parent._shunt_resistance[self._channel] = value
-
-    @property
-    def critical_alert_threshold(self) -> float:
-        """Critical-Alert threshold in amperes
+    
+    def _get_alert_threshold(self, addr) -> float:
+        """Crticial/Warning alert threshold in amperes
 
         Returns:
             float: The current critical alert threshold in amperes.
@@ -189,20 +184,32 @@ class INA3221Channel:
         if self._channel > 2:
             raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
 
-        reg_addr = CRITICAL_ALERT_LIMIT_CH1 + 2 * self._channel
-        result = self._parent._read_register(reg_addr, 2)
+        result = self._parent._read_register(addr, 2)
         threshold = int.from_bytes(result, "big")
         return (threshold >> 3) * 40e-6 / self.shunt_resistance
-
-    @critical_alert_threshold.setter
-    def critical_alert_threshold(self, current: float) -> None:
+    
+    def _set_alert_threshold(self, addr, current) -> None:
         if self._channel > 2:
             raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
 
         threshold = int(current * self.shunt_resistance / 40e-6 * 8)
-        reg_addr = CRITICAL_ALERT_LIMIT_CH1 + 2 * self._channel
         threshold_bytes = threshold.to_bytes(2, "big")
-        self._parent._write_register(reg_addr, threshold_bytes)
+        self._parent._write_register(addr, threshold_bytes)
+    
+    @property
+    def critical_alert_threshold(self) -> float:
+        """Critical-Alert threshold in amperes
+
+        Returns:
+            float: The current critical alert threshold in amperes.
+        """
+        reg_addr = CRITICAL_ALERT_LIMIT_CH1 + 2 * self._channel
+        return self._get_alert_threshold(reg_addr)
+        
+    @critical_alert_threshold.setter
+    def critical_alert_threshold(self, current: float) -> None:
+        reg_addr = CRITICAL_ALERT_LIMIT_CH1 + 2 * self._channel
+        self._set_alert_threshold(reg_addr, current)
 
     @property
     def warning_alert_threshold(self) -> float:
@@ -211,23 +218,13 @@ class INA3221Channel:
         Returns:
             float: The current warning alert threshold in amperes.
         """
-        if self._channel > 2:
-            raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
-
         reg_addr = WARNING_ALERT_LIMIT_CH1 + 2 * self._channel
-        result = self._parent._read_register(reg_addr, 2)
-        threshold = int.from_bytes(result, "big")
-        return threshold / (self.shunt_resistance * 8)
+        return self._get_alert_threshold(reg_addr)
 
     @warning_alert_threshold.setter
     def warning_alert_threshold(self, current: float) -> None:
-        if self._channel > 2:
-            raise ValueError("Invalid channel number. Must be 0, 1, or 2.")
-
-        threshold = int(current * self.shunt_resistance * 8)
         reg_addr = WARNING_ALERT_LIMIT_CH1 + 2 * self._channel
-        threshold_bytes = threshold.to_bytes(2, "big")
-        self._parent._write_register(reg_addr, threshold_bytes)
+        self._set_alert_threshold(reg_addr, current)
 
     @property
     def current_amps(self) -> float:
