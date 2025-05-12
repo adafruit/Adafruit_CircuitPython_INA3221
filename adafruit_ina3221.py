@@ -278,7 +278,9 @@ class INA3221Channel:
 class INA3221:
     """Driver for the INA3221 device with three channels."""
 
-    def __init__(self, i2c, address: int = DEFAULT_ADDRESS, enable: List = [0, 1, 2], probe: bool = True) -> None:
+    def __init__(
+        self, i2c, address: int = DEFAULT_ADDRESS, enable: List = [0, 1, 2], probe: bool = True
+    ) -> None:
         """Initializes the INA3221 class over I2C
         Args:
             i2c (I2C): The I2C bus to which the INA3221 is connected.
