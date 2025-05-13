@@ -286,7 +286,7 @@ class INA3221:
             i2c (I2C): The I2C bus to which the INA3221 is connected.
             address (int, optional): The I2C address of the INA3221. Defaults to DEFAULT_ADDRESS.
             enable(List[int], optional): channels to initialize at start (default: all)
-            probe (bool, optiona): Probe for the device upon object creation, default is true
+            probe (bool, optional): Probe for the device upon object creation, default is true
         """
         self.i2c_dev = I2CDevice(i2c, address, probe=probe)
         self.reset()
@@ -417,7 +417,7 @@ class INA3221:
             int: The current flag indicators from the Mask/Enable register,
             masked for relevant flag bits.
         """
-        return self._read_register_bits(MASK_ENABLE, 0, 10)
+        return self._get_register_bits(MASK_ENABLE, 0, 10)
 
     @property
     def power_valid_limits(self) -> tuple:
@@ -427,9 +427,9 @@ class INA3221:
             tuple: A tuple containing the lower and upper voltage limits
             in volts as (lower_limit, upper_limit).
         """
-        raw_value = self._device._get_register_bits(POWERVALID_LOWERLIMIT, 0, 16)
+        raw_value = self._get_register_bits(POWERVALID_LOWERLIMIT, 0, 16)
         lower_limit = _to_signed(raw_value, 3, 16) * 8e-3
-        raw_value = self._device._get_register_bits(POWERVALID_UPPERLIMIT, 0, 16)
+        raw_value = self._get_register_bits(POWERVALID_UPPERLIMIT, 0, 16)
         upper_limit = _to_signed(raw_value, 3, 16) * 8e-3
         return lower_limit, upper_limit
 
@@ -440,8 +440,8 @@ class INA3221:
         # convert to mV and twos-complement
         lower_limit = _to_2comp(int(limits[0] * 1000), 3, 16)
         upper_limit = _to_2comp(int(limits[1] * 1000), 3, 16)
-        self._device._set_register_bits(POWERVALID_LOWERLIMIT, 0, 16, lower_limit)
-        self._device._set_register_bits(POWERVALID_UPPERLIMIT, 0, 16, upper_limit)
+        self._set_register_bits(POWERVALID_LOWERLIMIT, 0, 16, lower_limit)
+        self._set_register_bits(POWERVALID_UPPERLIMIT, 0, 16, upper_limit)
 
     def _get_register_bits(self, reg, offset, len):
         """return given bits from register"""
