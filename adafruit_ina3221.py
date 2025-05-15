@@ -429,10 +429,8 @@ class INA3221:
         """
         # LSB value is 8 mV -- Datasheet: 8.6.2.17/.18
         LSB = 8e-3
-        raw_value = self._get_register_bits(POWERVALID_LOWERLIMIT, 0, 16)
-        lower_limit = _to_signed(raw_value, 3, 16) * LSB
-        raw_value = self._get_register_bits(POWERVALID_UPPERLIMIT, 0, 16)
-        upper_limit = _to_signed(raw_value, 3, 16) * LSB
+        lower_limit = self._register_value_getter(addr=POWERVALID_LOWERLIMIT, lsb=LSB, shift=3)
+        upper_limit = self._register_value_getter(addr=POWERVALID_UPPERLIMIT, lsb=LSB, shift=3)
         return lower_limit, upper_limit
 
     @power_valid_limits.setter
@@ -441,11 +439,33 @@ class INA3221:
             raise ValueError("Must provide both lower and upper voltage limits.")
         # LSB value is 8 mV -- Datasheet: 8.6.2.17/.18
         LSB = 8e-3
-        # convert V to number of 8 mV steps and twos-complement
-        lower_limit = _to_2comp(int(limits[0] / LSB), 3, 16)
-        upper_limit = _to_2comp(int(limits[1] / LSB), 3, 16)
-        self._set_register_bits(POWERVALID_LOWERLIMIT, 0, 16, lower_limit)
-        self._set_register_bits(POWERVALID_UPPERLIMIT, 0, 16, upper_limit)
+        self._register_value_setter(addr=POWERVALID_LOWERLIMIT, value=limits[0], lsb=LSB, shift=3)
+        self._register_value_setter(addr=POWERVALID_UPPERLIMIT, value=limits[1], lsb=LSB, shift=3)
+
+    def _register_value_getter(
+        self,
+        addr: int,
+        bits: int = 16,
+        lsb: float = 1.,
+        offset: int = 0,
+        shift: int = 0
+    ) -> int:
+        raw_value = self._get_register_bits(reg=addr, offset=offset, len=bits)
+        value = _to_signed(raw_value, shift, bits) * lsb
+        return value
+
+    def _register_value_setter(
+        self,
+        addr: int,
+        value: float|int,
+        bits: int = 16,
+        lsb: float = 1.,
+        offset: int = 0,
+        shift: int = 0
+    ) -> None:
+        # Convert the value into number of LSB-value steps and twos-complement
+        bitval = _to_2comp(int(value / lsb), shift, bits)
+        self._set_register_bits(reg=addr, offset=offset, len=bits, value=bitval)
 
     def _get_register_bits(self, reg, offset, len):
         """return given bits from register"""
