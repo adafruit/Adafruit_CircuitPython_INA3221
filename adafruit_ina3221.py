@@ -427,19 +427,23 @@ class INA3221:
             tuple: A tuple containing the lower and upper voltage limits
             in volts as (lower_limit, upper_limit).
         """
+        # LSB value is 8 mV -- Datasheet: 8.6.2.17/.18
+        LSB = 8e-3
         raw_value = self._get_register_bits(POWERVALID_LOWERLIMIT, 0, 16)
-        lower_limit = _to_signed(raw_value, 3, 16) * 8e-3
+        lower_limit = _to_signed(raw_value, 3, 16) * LSB
         raw_value = self._get_register_bits(POWERVALID_UPPERLIMIT, 0, 16)
-        upper_limit = _to_signed(raw_value, 3, 16) * 8e-3
+        upper_limit = _to_signed(raw_value, 3, 16) * LSB
         return lower_limit, upper_limit
 
     @power_valid_limits.setter
     def power_valid_limits(self, limits: tuple) -> None:
         if len(limits) != 2:
             raise ValueError("Must provide both lower and upper voltage limits.")
-        # convert to mV and twos-complement
-        lower_limit = _to_2comp(int(limits[0] * 1000), 3, 16)
-        upper_limit = _to_2comp(int(limits[1] * 1000), 3, 16)
+        # LSB value is 8 mV -- Datasheet: 8.6.2.17/.18
+        LSB = 8e-3
+        # convert V to number of 8 mV steps and twos-complement
+        lower_limit = _to_2comp(int(limits[0] / LSB), 3, 16)
+        upper_limit = _to_2comp(int(limits[1] / LSB), 3, 16)
         self._set_register_bits(POWERVALID_LOWERLIMIT, 0, 16, lower_limit)
         self._set_register_bits(POWERVALID_UPPERLIMIT, 0, 16, upper_limit)
 
