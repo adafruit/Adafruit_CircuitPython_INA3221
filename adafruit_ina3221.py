@@ -256,11 +256,11 @@ class INA3221Channel:
         """
         reg_addr = WARNING_ALERT_LIMIT_REGS[self._channel]
         threshold = self._device._get_register_bits(reg_addr, 3, 13)
-        return threshold / self._shunt_resistance
+        return threshold * SHUNT_V_LSB / self._shunt_resistance
 
     @warning_alert_threshold.setter
     def warning_alert_threshold(self, current: float) -> None:
-        threshold = int(current * self._shunt_resistance)
+        threshold = int(current * self._shunt_resistance / SHUNT_V_LSB)
         reg_addr = WARNING_ALERT_LIMIT_REGS[self._channel]
         self._device._set_register_bits(reg_addr, 3, 13, threshold)
 
