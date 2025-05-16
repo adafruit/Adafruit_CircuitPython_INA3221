@@ -458,7 +458,7 @@ class INA3221:
         self._register_value_setter(addr=POWERVALID_UPPERLIMIT, value=limit, lsb=LSB, shift=1)
 
     def _register_value_getter(
-        self, addr: int, bits: int = 16, lsb: float = 1., shift: int = 0
+        self, addr: int, bits: int = 16, lsb: float = 1.0, shift: int = 0
     ) -> float:
         offset = 0
         raw_value = self._get_register_bits(reg=addr, offset=offset, len=bits)
@@ -466,7 +466,7 @@ class INA3221:
         return value
 
     def _register_value_setter(
-        self, addr: int, value: float | int, bits: int = 16, lsb: float = 1., shift: int = 0
+        self, addr: int, value: float | int, bits: int = 16, lsb: float = 1.0, shift: int = 0
     ) -> None:
         offset = 0
         # Convert the value into number of LSB-value steps and twos-complement
