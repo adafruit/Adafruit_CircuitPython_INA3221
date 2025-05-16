@@ -453,7 +453,7 @@ class INA3221:
         return self._register_value_getter(addr=SHUNTVOLTAGE_SUM_LIMIT, lsb=LSB, shift=1)
     
     @shunt_voltage_sum_limit.setter
-    def shunt_voltage_sum_limit(self, limit: float|int) -> None:
+    def shunt_voltage_sum_limit(self, limit: float | int) -> None:
         LSB = SHUNT_V_LSB
         self._register_value_setter(addr=POWERVALID_UPPERLIMIT, value=limit, lsb=LSB, shift=1)
 
@@ -462,9 +462,9 @@ class INA3221:
         addr: int,
         bits: int = 16,
         lsb: float = 1.,
-        offset: int = 0,
         shift: int = 0
     ) -> float:
+        offset = 0
         raw_value = self._get_register_bits(reg=addr, offset=offset, len=bits)
         value = _to_signed(raw_value, shift, bits) * lsb
         return value
@@ -472,12 +472,12 @@ class INA3221:
     def _register_value_setter(
         self,
         addr: int,
-        value: float|int,
+        value: float | int,
         bits: int = 16,
         lsb: float = 1.,
-        offset: int = 0,
         shift: int = 0
     ) -> None:
+        offset = 0
         # Convert the value into number of LSB-value steps and twos-complement
         bitval = _to_2comp(int(value / lsb), shift, bits)
         self._set_register_bits(reg=addr, offset=offset, len=bits, value=bitval)
