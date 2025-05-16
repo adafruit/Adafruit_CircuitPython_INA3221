@@ -451,7 +451,7 @@ class INA3221:
     def shunt_voltage_sum_limit(self) -> float:
         LSB = SHUNT_V_LSB
         return self._register_value_getter(addr=SHUNTVOLTAGE_SUM_LIMIT, lsb=LSB, shift=1)
-    
+
     @shunt_voltage_sum_limit.setter
     def shunt_voltage_sum_limit(self, limit: float | int) -> None:
         LSB = SHUNT_V_LSB
