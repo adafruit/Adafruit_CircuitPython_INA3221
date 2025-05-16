@@ -256,11 +256,11 @@ class INA3221Channel:
         """
         reg_addr = WARNING_ALERT_LIMIT_REGS[self._channel]
         threshold = self._device._get_register_bits(reg_addr, 3, 13)
-        return threshold / self._shunt_resistance
+        return threshold * SHUNT_V_LSB / self._shunt_resistance
 
     @warning_alert_threshold.setter
     def warning_alert_threshold(self, current: float) -> None:
-        threshold = int(current * self._shunt_resistance)
+        threshold = int(current * self._shunt_resistance / SHUNT_V_LSB)
         reg_addr = WARNING_ALERT_LIMIT_REGS[self._channel]
         self._device._set_register_bits(reg_addr, 3, 13, threshold)
 
@@ -427,21 +427,51 @@ class INA3221:
             tuple: A tuple containing the lower and upper voltage limits
             in volts as (lower_limit, upper_limit).
         """
-        raw_value = self._get_register_bits(POWERVALID_LOWERLIMIT, 0, 16)
-        lower_limit = _to_signed(raw_value, 3, 16) * 8e-3
-        raw_value = self._get_register_bits(POWERVALID_UPPERLIMIT, 0, 16)
-        upper_limit = _to_signed(raw_value, 3, 16) * 8e-3
+        # LSB value is 8 mV -- Datasheet: 8.6.2.17/.18
+        LSB = BUS_V_LSB
+        lower_limit = self._register_value_getter(addr=POWERVALID_LOWERLIMIT, lsb=LSB, shift=3)
+        upper_limit = self._register_value_getter(addr=POWERVALID_UPPERLIMIT, lsb=LSB, shift=3)
         return lower_limit, upper_limit
 
     @power_valid_limits.setter
     def power_valid_limits(self, limits: tuple) -> None:
         if len(limits) != 2:
             raise ValueError("Must provide both lower and upper voltage limits.")
-        # convert to mV and twos-complement
-        lower_limit = _to_2comp(int(limits[0] * 1000), 3, 16)
-        upper_limit = _to_2comp(int(limits[1] * 1000), 3, 16)
-        self._set_register_bits(POWERVALID_LOWERLIMIT, 0, 16, lower_limit)
-        self._set_register_bits(POWERVALID_UPPERLIMIT, 0, 16, upper_limit)
+        # LSB value is 8 mV -- Datasheet: 8.6.2.17/.18
+        LSB = BUS_V_LSB
+        self._register_value_setter(addr=POWERVALID_LOWERLIMIT, value=limits[0], lsb=LSB, shift=3)
+        self._register_value_setter(addr=POWERVALID_UPPERLIMIT, value=limits[1], lsb=LSB, shift=3)
+
+    @property
+    def shunt_voltage_sum(self) -> float:
+        LSB = SHUNT_V_LSB
+        return self._register_value_getter(addr=SHUNTVOLTAGE_SUM, lsb=LSB, shift=1)
+
+    @property
+    def shunt_voltage_sum_limit(self) -> float:
+        LSB = SHUNT_V_LSB
+        return self._register_value_getter(addr=SHUNTVOLTAGE_SUM_LIMIT, lsb=LSB, shift=1)
+
+    @shunt_voltage_sum_limit.setter
+    def shunt_voltage_sum_limit(self, limit: float | int) -> None:
+        LSB = SHUNT_V_LSB
+        self._register_value_setter(addr=POWERVALID_UPPERLIMIT, value=limit, lsb=LSB, shift=1)
+
+    def _register_value_getter(
+        self, addr: int, bits: int = 16, lsb: float = 1.0, shift: int = 0
+    ) -> float:
+        offset = 0
+        raw_value = self._get_register_bits(reg=addr, offset=offset, len=bits)
+        value = _to_signed(raw_value, shift, bits) * lsb
+        return value
+
+    def _register_value_setter(
+        self, addr: int, value: float | int, bits: int = 16, lsb: float = 1.0, shift: int = 0
+    ) -> None:
+        offset = 0
+        # Convert the value into number of LSB-value steps and twos-complement
+        bitval = _to_2comp(int(value / lsb), shift, bits)
+        self._set_register_bits(reg=addr, offset=offset, len=bits, value=bitval)
 
     def _get_register_bits(self, reg, offset, len):
         """return given bits from register"""
