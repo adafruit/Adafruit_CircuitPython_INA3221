@@ -94,5 +94,8 @@ ignore = [
     "PLR0124",  # comparison-with-itself
 ]
 
+[lint.pylint]
+max-args = 7
+
 [format]
 line-ending = "lf"
